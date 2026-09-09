@@ -135,14 +135,14 @@ See [`examples/simple-server/`](examples/simple-server/) for a complete working 
 ### Testing the Example
 
 ```bash
-# Terminal 1: Start NATS server
-docker run -d --rm -p 4222:4222 nats:latest -DV -js
-
-# Terminal 2: Run the example
+# Terminal 1: Run the example
+# An embedded NATS server starts in-process on nats://127.0.0.1:4222.
+# Set NATS_PORT to change the port, or NATS_URL to use an external server:
+#   NATS_URL=nats://localhost:4222 go run main.go
 cd examples/simple-server
 go run main.go
 
-# Terminal 3: Test the server
+# Terminal 2: Test the server
 # Initialize session
 nats request mcp.greeter '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{}},"id":1}'
 
