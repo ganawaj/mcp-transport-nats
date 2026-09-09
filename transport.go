@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
@@ -73,6 +74,15 @@ type Connection struct {
 	subscription *nats.Subscription
 	currentMsg   *nats.Msg
 	logger       *slog.Logger
+
+	// done is closed by Close so that a Read blocked waiting for a NATS
+	// message returns instead of hanging. nats.go never closes the channel
+	// it delivers into, so without this signal a Read would only return
+	// when its own context is cancelled, which the SDK does not do on
+	// shutdown.
+	done      chan struct{}
+	closeOnce sync.Once
+	closeErr  error
 }
 
 // Connect establishes a NATS connection and returns an MCP Connection.
@@ -143,6 +153,7 @@ func (t *Transport) Connect(ctx context.Context) (mcp.Connection, error) {
 		incoming:     incoming,
 		subscription: sub,
 		logger:       logger,
+		done:         make(chan struct{}),
 	}, nil
 }
 
@@ -163,6 +174,10 @@ func (c *Connection) Read(ctx context.Context) (jsonrpc.Message, error) {
 	case <-ctx.Done():
 		c.logger.Debug("Read operation cancelled", "reason", ctx.Err())
 		return nil, ctx.Err()
+
+	case <-c.done:
+		c.logger.Debug("Read aborted because the connection was closed")
+		return nil, io.EOF
 
 	case msg := <-c.incoming:
 		if msg == nil {
@@ -253,33 +268,43 @@ func (c *Connection) Write(ctx context.Context, msg jsonrpc.Message) error {
 
 // Close closes the NATS connection and cleans up resources.
 // This method implements the mcp.Connection interface.
+//
+// Close is safe to call multiple times and concurrently with Read. The first
+// call unblocks any pending Read and tears down the NATS connection; later
+// calls return the result of the first.
 func (c *Connection) Close() error {
-	if c.nc == nil {
-		return nil
-	}
-
-	c.logger.Info("Closing NATS connection")
-
-	// Unsubscribe if subscription exists
-	if c.subscription != nil {
-		if err := c.subscription.Unsubscribe(); err != nil {
-			c.logger.Warn("Failed to unsubscribe from NATS subject", "error", err)
+	c.closeOnce.Do(func() {
+		if c.done != nil {
+			close(c.done)
 		}
-	}
 
-	// Close the NATS connection
-	c.nc.Close()
+		if c.nc == nil {
+			return
+		}
 
-	// Verify connection is closed
-	status := c.nc.Status()
-	if status != nats.DISCONNECTED && status != nats.CLOSED {
-		c.logger.Error("Failed to close NATS connection properly", "status", status)
-		return errors.New("failed to close NATS connection properly")
-	}
+		c.logger.Info("Closing NATS connection")
 
-	c.logger.Info("NATS connection closed successfully")
-	c.nc = nil
-	return nil
+		// Unsubscribe if subscription exists
+		if c.subscription != nil {
+			if err := c.subscription.Unsubscribe(); err != nil {
+				c.logger.Warn("Failed to unsubscribe from NATS subject", "error", err)
+			}
+		}
+
+		// Close the NATS connection
+		c.nc.Close()
+
+		// Verify connection is closed
+		status := c.nc.Status()
+		if status != nats.DISCONNECTED && status != nats.CLOSED {
+			c.logger.Error("Failed to close NATS connection properly", "status", status)
+			c.closeErr = errors.New("failed to close NATS connection properly")
+			return
+		}
+
+		c.logger.Info("NATS connection closed successfully")
+	})
+	return c.closeErr
 }
 
 // SessionID returns the current session identifier.
