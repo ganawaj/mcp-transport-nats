@@ -3,7 +3,6 @@
 A [NATS](https://nats.io/) transport implementation for the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/). This enables **distributed MCP communication** by routing JSON-RPC messages over NATS messaging.
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/ganawaj/mcp-transport-nats.svg)](https://pkg.go.dev/github.com/ganawaj/mcp-transport-nats)
-[![Go Report Card](https://goreportcard.com/badge/github.com/ganawaj/mcp-transport-nats)](https://goreportcard.com/report/github.com/ganawaj/mcp-transport-nats)
 
 ## What This Enables
 
@@ -72,16 +71,16 @@ func main() {
 go install github.com/nats-io/natscli/nats@latest
 
 # Initialize MCP session
-nats request mcp.my-service '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{}},"id":1}'
+nats request mcp.greeter '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{}},"id":1}'
 
 # Send initialized notification
-nats pub mcp.my-service '{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}'
+nats pub mcp.greeter '{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}'
 
 # List available tools
-nats request mcp.my-service '{"jsonrpc":"2.0","method":"tools/list","params":{},"id":2}'
+nats request mcp.greeter '{"jsonrpc":"2.0","method":"tools/list","params":{},"id":2}'
 
 # Call a tool
-nats request mcp.my-service '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"greet","arguments":{"name":"World"}},"id":3}'
+nats request mcp.greeter '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"greet","arguments":{"name":"World"}},"id":3}'
 ```
 
 ## Configuration

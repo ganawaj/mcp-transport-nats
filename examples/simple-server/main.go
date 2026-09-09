@@ -24,30 +24,30 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ganawaj/mcp-transport-nats"
+	natstransport "github.com/ganawaj/mcp-transport-nats"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/nats-io/nats-server/v2/server"
 )
 
 // HiArgs defines the input parameters for the greet tool
 type HiArgs struct {
-	Name string `json:"name" mcp:"the name to say hi to"`
+	Name string `json:"name" jsonschema:"the name to say hi to"`
 }
 
 // SayHi is a tool handler that responds with a personalized greeting.
 // It demonstrates how to implement MCP tool functions that can be called
 // remotely over NATS.
-func SayHi(ctx context.Context, req *mcp.ServerRequest[*mcp.CallToolParamsFor[HiArgs]]) (*mcp.CallToolResultFor[struct{}], error) {
-	name := req.Params.Arguments.Name
+func SayHi(ctx context.Context, req *mcp.CallToolRequest, args HiArgs) (*mcp.CallToolResult, any, error) {
+	name := args.Name
 
 	// Log the tool invocation
 	slog.Info("Greet tool invoked", "name", name)
 
-	return &mcp.CallToolResultFor[struct{}]{
+	return &mcp.CallToolResult{
 		Content: []mcp.Content{
 			&mcp.TextContent{Text: "Hi " + name + "! 👋"},
 		},
-	}, nil
+	}, nil, nil
 }
 
 // startEmbeddedNATS runs a NATS server inside this process so the example
